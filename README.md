@@ -34,10 +34,11 @@ Test Finished
 
 ---
 
-In this firmware, the DDR3 interface is open sourced under than BSD3 license without the Copyright Gowin IPs.  
+In this firmware, the DDR3 interface is open sourced under the BSD3 license without the Copyright of Gowin IPs.  
 This project can also be compiled with some open source compiliers.
 
-The Gowin DDR3 IP is much faster than this and much larger than this.
+The Gowin DDR3 IP is much faster than this and much larger than this.  
+If you wish to use the Gowin DDR3 IP, please checkout to main branch.  
 
 This DDR Interface runs at DDR-80.  
 The write rate is about 240Mbits/s.  
