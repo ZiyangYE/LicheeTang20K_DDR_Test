@@ -8,7 +8,7 @@ GOWIN FPGA Designer V1.9.8.05
 8-bit data, 1 stop bit, no parity, 115200 baud 
 
 ## Frequency
-The DDR interface is designed to run at 80MHz (DDR-40).
+The DDR interface is designed to run at 80MHz (DDR-80).
 But due to the limitation of the PLL, it actually runs at 81MHz.
 
 ## Others
@@ -37,15 +37,14 @@ Test Finished
 In this firmware, the DDR3 interface is open sourced under than BSD3 license without the Copyright Gowin IPs.  
 This project can also be compiled with some open source compiliers.
 
-The Gowin DDR3 IP is much faster than this.
+The Gowin DDR3 IP is much faster than this and much larger than this.
 
-This DDR Interface runs at DDR-40.  
+This DDR Interface runs at DDR-80.  
 The write rate is about 240Mbits/s.  
 The read rate is about 300Mbits/s.  
 
-The Gowin DDR3 IP runs at X.  
-The maxium write rate is about (when using 64 bursts).  
-The maxium read rate is about (when using 64 bursts).
+The Gowin DDR3 IP runs at DDR-800.  
+The maxium read/write rate is about 11,000MBits/s (when using 64 bursts).  
 
 This DDR Interface consumes 147 Regs and 216 LUTs.  
-Gowin DDR3 IP consumes
+Gowin DDR3 IP consumes 1288 Regs, 1363 LUTs, 102 ALUs, 8 BSRAMs and 110 SSRAMs.
