@@ -18,19 +18,19 @@ For a 1Gbits version, each fill/check stage will consumes about 15s.
 And for a 2Gbits version, each fill/check stage will consumes about 29s.  
 
 ## Example Output
-Perform Reset
-Auto Reset Every 125s
-Init Complete
-DDR Size: 1G
-Begin to Fill
-Fill Stage 1 Finished
-Begin to Check Stage 1
-Check Stage 1 Finished without Mismatch
-Begin to Fill Stage 2
-Fill Stage 2 Finished
-Begin to Check Stage 2
-Check Stage 2 Finished without Mismatch
-Test Finished
+Perform Reset  
+Auto Reset Every 125s  
+Init Complete  
+DDR Size: 1G  
+Begin to Fill  
+Fill Stage 1 Finished  
+Begin to Check Stage 1  
+Check Stage 1 Finished without Mismatch  
+Begin to Fill Stage 2  
+Fill Stage 2 Finished  
+Begin to Check Stage 2  
+Check Stage 2 Finished without Mismatch  
+Test Finished  
 
 ---
 
