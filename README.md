@@ -13,7 +13,35 @@ The fill rate and the check rate is limited by the LFSR. Whose output rate is ab
 For a 1Gbits version, each fill/check stage will consumes about 11s.  
 And for a 2Gbits version, each fill/check stage will consumes about 22s.  
 
+## Example Output
+Perform Reset  
+Auto Reset Every 100s  
+Init Complete  
+DDR Size: 1G  
+Begin to Fill  
+Fill Stage 1 Finished  
+Begin to Check Stage 1 
+Check Stage 1 Finished without Mismatch  
+Begin to Fill Stage 2  
+Fill Stage 2 Finished  
+Begin to Check Stage 2  
+Check Stage 2 Finished without Mismatch  
+Test Finished  
+
 ---
 
-In this firmware, the DDR3 interface belongs to GOWIN. And is limited to be used in the GOWIN FPGA Designer.  
-I will publish a COPYLEFT version of this firmware later, with a DDR3 interface I wrote myself __(A SUPER SIMPLE DDR INTERFACE wo Minimum Freqency Constraints)__.  
+In this firmware, the DDR3 interface belongs to Gowin. And is limited to be used in the GOWIN FPGA Designer.  
+In the branch __slowDDR3__, there is a open sourced DDR3 interface.
+
+The Gowin DDR3 IP is much faster than the __slowDDR3__ and much larger than it.  
+If you wish to use the __slowDDR3__, please checkout to __slowDDR3__ branch.  
+
+This DDR3 IP runs at DDR-800.  
+The maxium read/write rate is about 11,000MBits/s (when using 64 bursts).  
+
+The __slowDDR3__ runs at DDR-80.  
+The write rate is about 240Mbits/s.  
+The read rate is about 300Mbits/s.  
+
+Gowin DDR3 IP consumes 1288 Regs, 1363 LUTs, 102 ALUs, 8 BSRAMs and 110 SSRAMs.  
+__slowDDR3__ consumes 147 Regs and 216 LUTs.  
