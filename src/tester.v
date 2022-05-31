@@ -1,38 +1,47 @@
 module tester(
-    input       clk,
-    output reg  rst_n,
+    clk,
+    rst_n,
 
-    input                clk_x1,
-    output wire [27-1:0] app_addr,        //ADDR_WIDTH=27
+    app_addr,
 
-    output reg        app_cmd_en,
-    output reg [2:0]  app_cmd,
-    input             app_cmd_rdy,
+    app_rd_valid,
+    app_rd_rdy,
+    app_rd_payload,
+    app_wr_valid,
+    app_wr_rdy,
+    app_wr_payload,
 
-    output reg            app_wren,
-    output reg            app_data_end,
-    output reg [128-1:0]  app_data,    //APP_DATA_WIDTH=128
-    input                 app_data_rdy,
+    init_fin,
 
-    input                 app_rdata_valid,
-    input                 app_rdata_end,
-    input [128-1:0]       app_rdata,     //APP_DATA_WIDTH=128
-
-    input             init_calib_complete,
-    output reg [5:0]  app_burst_number,
-
-    output wire txp
+    txp
   );
 
+input clk;
+output reg rst_n;
+
+output [27-1:0] app_addr;
+
+input app_rd_valid;
+output reg app_rd_rdy;
+input [16-1:0] app_rd_payload;
+output reg app_wr_valid;
+input app_wr_rdy;
+output reg [16-1:0] app_wr_payload;
+
+input init_fin;
+
+output txp;
+
+
 //Reset Controll -------------------------------------------
-reg [31:0] time_counter;//every 100s, perform a reset.
+reg [47:0] time_counter;//every 125s, perform a reset.
 
 always@(posedge clk) begin
   time_counter<=time_counter+1;
 
-  if(time_counter>32'd2_700_000_000-32'd1)begin
+  if(time_counter>48'd10_125_000_000-48'd1)begin
     rst_n<=1'b0;
-    time_counter<=0;
+    time_counter<=48'd0;
   end
   else begin
     rst_n<=1'b1;
@@ -85,13 +94,7 @@ reg ddr_size;
 
 reg [26:0] int_app_addr;
 
-//remap the addr, row -> bank -> col
-//it makes simpler to detect the size
-//the addr is the real ddr address
-//counted in 2 Bytes
-//So in every Single-Busrt, the addr should increse by 8
-//In a 64-Burst, the addr should increse by 512
-assign app_addr = {int_app_addr[12:10],int_app_addr[26:13],int_app_addr[9:0]};
+assign app_addr = int_app_addr;
 
 //rng part ------------------------------------------------
 reg[127:0] rng;
@@ -103,7 +106,7 @@ reg[6:0] rng_cnt;
 reg rng_rst;
 reg rng_tick;
 
-always@(posedge clk_x1)begin
+always@(posedge clk)begin
   rng<=rng_i;
   rng_inv<=rng_i;
 
@@ -121,15 +124,12 @@ end
 
 reg[5:0] wr_cnt;
 
-reg [127:0] read_buf_s0;//2 stages buffer for higher Fmax
-reg [127:0] read_buf_s1;
-
-reg [127:0] read_data[7:0];
+reg [127:0] read_data;
 reg [2:0] read_data_pos;
 
 reg error_bit;
 
-always@(posedge clk_x1 or negedge rst_n)begin
+always@(posedge clk or negedge rst_n)begin
   
   if(rst_n==1'b0)begin
     //init counter
@@ -143,112 +143,112 @@ always@(posedge clk_x1 or negedge rst_n)begin
     check_state<=CHECK_RST;
 
     //init interface
-    app_cmd_en<=1'b0;
-    app_wren<=1'b0;
-    app_data_end<=1'b0;
+    app_rd_rdy<=1'b0;
+    app_wr_valid<=1'b0;
 
     //init regs
     error_bit<=1'b0;
   end else begin
-    work_counter<=work_counter+8'd1;
-
-    read_buf_s1<=read_buf_s0;
-    read_buf_s0<=read_data[read_data_pos];
-
     case(work_state)
       //wait init finish--------------------------------------------
       WORK_WAIT_INIT:begin
-        if(init_calib_complete==1'b0)work_counter<=8'd0;
-        
-        //exit
-        if(work_counter==8'd255)work_state<=WORK_DETECT_SIZE;
+        if(init_fin==1'b1)work_state<=WORK_DETECT_SIZE;
       end
 
       //detect ddr size---------------------------------------------
       WORK_DETECT_SIZE:begin
-        app_burst_number<=6'd0;//one data burst
-        app_cmd_en<=1'b0;
-        app_wren<=1'b0;
-        app_data_end<=1'b0;
+        app_rd_rdy<=1'b0;
+        app_wr_valid<=1'b0;
 
         case(detect_state)
-          DETECT_SIZE_WR0:
-            if(app_cmd_rdy&&app_data_rdy&&work_counter==8'd0)begin
-              app_cmd_en<=1'b1;
-              app_cmd<=WR_CMD;
-              int_app_addr<=27'h000_0000;
+          DETECT_SIZE_WR0:begin
+            int_app_addr<=27'h000_0000;
+            app_wr_payload<=16'h5A01;
 
-              //write data
-              app_wren<=1'b1;
-              app_data<=128'h5A01_23FA_4567_89AB_CDEF_0123_4567_89AB;
-              app_data_end<=1'b1;
+            if(work_counter==8'd0)
+              app_wr_valid<=1'b1;
+            else
+              app_wr_valid<=1'b0;
 
+            if(app_wr_rdy==1'b1)
+              work_counter<=work_counter+8'd1;
+
+            if(work_counter==8'd7 && app_wr_rdy==1'b1)begin
               //exit
               detect_state<=DETECT_SIZE_WR1;
-            end        
-          DETECT_SIZE_WR1:
-            if(app_cmd_rdy&&app_data_rdy&&work_counter==8'd0)begin
-              app_cmd_en<=1'b1;
-              app_cmd<=WR_CMD;
-              int_app_addr<=27'h400_0000;//Set highest adr line to 1 to detect ddr size
+              work_counter<=8'd0;
+            end     
+          end   
+          DETECT_SIZE_WR1:begin
+            int_app_addr<=27'h400_0000;
+            app_wr_payload<=16'h5329;
 
-              //write data
-              app_wren<=1'b1;
-              app_data<=128'h5329_0AB2_FA05_00FF_89AB_CDEF_0123_4567;
-              app_data_end<=1'b1;
+            if(work_counter==8'd0)
+              app_wr_valid<=1'b1;
+            else
+              app_wr_valid<=1'b0;
 
+            if(app_wr_rdy==1'b1)
+              work_counter<=work_counter+8'd1;
+
+            if(work_counter==8'd7 && app_wr_rdy==1'b1)begin
               //exit
               detect_state<=DETECT_SIZE_RP0;
-            end
-          DETECT_SIZE_RP0:
-            if(app_cmd_rdy&&work_counter==8'd0)begin
-              app_cmd_en<=1'b1;
-              app_cmd<=RD_CMD;
-              int_app_addr<=27'h000_0000;
+              work_counter<=8'd0;
+            end     
+          end
+          DETECT_SIZE_RP0:begin
+            int_app_addr<=27'h000_0000;
 
+            if(work_counter==8'd0)
+              app_rd_rdy<=1'b1;
+            else
+              app_rd_rdy<=1'b0;
+
+            if(app_rd_valid==1'b1)
+              work_counter<=work_counter+8'd1;
+
+            if(work_counter==8'd7 && app_rd_valid==1'b1)begin
               //exit
               detect_state<=DETECT_SIZE_RP1;
+              work_counter<=8'd0;
             end
-          DETECT_SIZE_RP1:
-            if(app_rdata_valid)begin
+          end
+          DETECT_SIZE_RP1:begin
               //exit
               work_state<=WORK_FILL;
 
               //exit if error
               if(
-                app_rdata!=128'h5A01_23FA_4567_89AB_CDEF_0123_4567_89AB
+                app_rd_payload!=16'h5A01
               &&
-                app_rdata!=128'h5329_0AB2_FA05_00FF_89AB_CDEF_0123_4567
+                app_rd_payload!=16'h5329
               )begin
                 work_state<=WORK_FIN;
                 error_bit<=1'b1;
               end
 
               //detect size
-              ddr_size<= app_rdata==128'h5A01_23FA_4567_89AB_CDEF_0123_4567_89AB ? DDR_SIZE_2G : DDR_SIZE_1G;
-            end
+              ddr_size<=app_rd_payload==16'h5A01 ? DDR_SIZE_2G : DDR_SIZE_1G;
+          end
         endcase
       end
 
       //fill data----------------------------------------------------
-      WORK_FILL:begin
+      WORK_FILL:begin 
         //fill the data, then perform the write cmd
-        app_burst_number<=6'd7;//8-burst
 
         rng_rst<=1'b0;
         rng_tick<=1'b0;
         rng_init_pattern<=128'h0123_4567_890A_BCDE_FEDC_BA98_7654_3210;
 
-        app_wren<=1'b0;
-        app_data_end<=1'b0;
-        app_cmd_en<=1'b0;
+        app_wr_valid<=1'b0;
         
         case(fill_state)
           FILL_RST:begin
             rng_rst<=1'b1;
 
-            //set adr to the prev pos, so after add 64, it will be 0
-            int_app_addr<=28'h800_0000-28'd64;
+            int_app_addr<=27'h0;
 
             //exit
             fill_state<=FILL_RNG;
@@ -264,42 +264,35 @@ always@(posedge clk_x1 or negedge rst_n)begin
           end
 
           FILL_WRT:begin
-            if(app_data_rdy)begin
-              app_wren<=1'b1;
-              app_data_end<=1'b1;
-              app_data<=rng;
+            if(wr_cnt==6'd0)begin
+              app_wr_valid<=1'b1;
+              app_wr_payload<=rng[(0)*16 +: 16];
+            end else
+              app_wr_valid<=1'b0;
 
+            if(app_wr_rdy)begin
               wr_cnt<=wr_cnt+6'd1;
+              app_wr_payload<=rng[(wr_cnt+1)*16 +: 16];
 
               //exit
               if(wr_cnt==6'd7)begin
-                fill_state<=FILL_CMD;
-                wr_cnt<=6'd0;
-              end else
+                int_app_addr<=int_app_addr+27'd8;
                 fill_state<=FILL_RNG;
-            end
-          end
+                wr_cnt<=6'd0;
 
-          FILL_CMD:begin
-            if(app_cmd_rdy)begin
-              app_cmd_en<=1'b1;
-              app_cmd<=WR_CMD;
-              int_app_addr<=int_app_addr+27'd64;//8-burst
-              
-              fill_state<=FILL_RNG;
-
-              //exit
-              if(ddr_size==DDR_SIZE_2G)begin
-                if({1'b0,int_app_addr}==28'h800_0000-28'd128)begin
-                  work_state<=WORK_CHECK;
-                  fill_state<=FILL_RST;
-                end
-              end else begin
-                if({1'b0,int_app_addr}==28'h400_0000-28'd128)begin
-                  work_state<=WORK_CHECK;
-                  fill_state<=FILL_RST;
+                if(ddr_size==DDR_SIZE_1G)begin
+                  if({1'b0,int_app_addr}==28'h400_0000-28'd8)begin
+                    work_state<=WORK_CHECK;
+                    fill_state<=FILL_RST;
+                  end
+                end else begin
+                  if({1'b0,int_app_addr}==28'h800_0000-28'd8)begin
+                    work_state<=WORK_CHECK;
+                    fill_state<=FILL_RST;
+                  end
                 end
               end
+                
             end
           end
         endcase
@@ -308,41 +301,33 @@ always@(posedge clk_x1 or negedge rst_n)begin
       //check data----------------------------------------------------
       WORK_CHECK:begin
         //perform the read cmd, then read the data and compare with the rng
-        app_burst_number<=6'd7;//8-burst
-
         rng_rst<=1'b0;
         rng_tick<=1'b0;
         rng_init_pattern<=128'h0123_4567_890A_BCDE_FEDC_BA98_7654_3210;
 
-        app_cmd_en<=1'b0;
+        app_rd_rdy<=1'b0;
 
         case(check_state)
           CHECK_RST:begin
             rng_rst<=1'b1;
 
-            //set adr to the prev pos, so after add 64, it will be 0
-            int_app_addr<=28'h800_0000-28'd64;
+            //set adr to the prev pos, so after add 8, it will be 0
+            int_app_addr<=27'h0;
 
             //exit
-            check_state<=CHECK_CMD;
-          end
-
-          CHECK_CMD:begin
-            if(app_cmd_rdy)begin
-              rng_tick<=1'b1;//one more tick
-
-              app_cmd_en<=1'b1;
-              app_cmd<=RD_CMD;
-              int_app_addr<=int_app_addr+27'd64;//8-burst
-
-              check_state<=CHECK_DAT;
-              read_data_pos<=3'd0;
-            end
+            check_state<=CHECK_DAT;
           end
 
           CHECK_DAT:begin
-            if(app_rdata_valid)begin
-              read_data[read_data_pos]<=app_rdata;
+            rng_tick<=1'b1;
+
+            if(read_data_pos==3'd0)begin
+              app_rd_rdy<=1'b1;
+            end else
+              app_rd_rdy<=1'b0;
+
+            if(app_rd_valid)begin
+              read_data[read_data_pos*16+:16]<=app_rd_payload;
 
               read_data_pos<=read_data_pos+3'd1;
               if(read_data_pos==3'd7)begin
@@ -354,28 +339,26 @@ always@(posedge clk_x1 or negedge rst_n)begin
           CHECK_RNG:begin
             rng_tick<=1'b1;
 
-            if(rng_cnt==7'd0)begin
-              if(read_buf_s1!=rng)begin
+            if(rng_cnt==7'd2)begin
+              if(read_data!=rng)begin
                 work_state<=WORK_CHECK_FAIL;
               end
 
-              read_data_pos<=read_data_pos+3'd1;
+              int_app_addr<=int_app_addr+27'd8;
 
               //exit
-              if(read_data_pos==3'd7)begin
-                check_state<=CHECK_CMD;
+              check_state<=CHECK_DAT;
 
-                if(ddr_size==DDR_SIZE_1G)begin
-                  if({1'b0,int_app_addr}==28'h400_0000-28'd64)begin
-                    work_state<=WORK_INV_FILL;
-                    check_state<=CHECK_RST;
-                  end
+              if(ddr_size==DDR_SIZE_1G)begin
+                if({1'b0,int_app_addr}==28'h400_0000-28'd8)begin
+                  work_state<=WORK_INV_FILL;
+                  check_state<=CHECK_RST;
                 end
-                else begin
-                  if({1'b0,int_app_addr}==28'h800_0000-28'd64)begin
-                    work_state<=WORK_INV_FILL;
-                    check_state<=CHECK_RST;
-                  end
+              end
+              else begin
+                if({1'b0,int_app_addr}==28'h800_0000-28'd8)begin
+                  work_state<=WORK_INV_FILL;
+                  check_state<=CHECK_RST;
                 end
               end
             end
@@ -383,26 +366,21 @@ always@(posedge clk_x1 or negedge rst_n)begin
         endcase
       end
 
-
-      //fill with inv data----------------------------------------------------
-      WORK_INV_FILL:begin
+      //fill inv data----------------------------------------------------
+      WORK_INV_FILL:begin 
         //fill the data, then perform the write cmd
-        app_burst_number<=6'd7;//8-burst
 
         rng_rst<=1'b0;
         rng_tick<=1'b0;
         rng_init_pattern<=128'h0123_4567_890A_BCDE_FEDC_BA98_7654_3210;
 
-        app_wren<=1'b0;
-        app_data_end<=1'b0;
-        app_cmd_en<=1'b0;
+        app_wr_valid<=1'b0;
         
         case(fill_state)
           FILL_RST:begin
             rng_rst<=1'b1;
 
-            //set adr to the prev pos, so after add 64, it will be 0
-            int_app_addr<=28'h800_0000-28'd64;
+            int_app_addr<=27'h0;
 
             //exit
             fill_state<=FILL_RNG;
@@ -418,85 +396,70 @@ always@(posedge clk_x1 or negedge rst_n)begin
           end
 
           FILL_WRT:begin
-            if(app_data_rdy)begin
-              app_wren<=1'b1;
-              app_data_end<=1'b1;
-              app_data<=rng_inv;
+            if(wr_cnt==6'd0)begin
+              app_wr_valid<=1'b1;
+              app_wr_payload<=rng_inv[(0)*16 +: 16];
+            end else
+              app_wr_valid<=1'b0;
 
+            if(app_wr_rdy)begin
               wr_cnt<=wr_cnt+6'd1;
+              app_wr_payload<=rng_inv[(wr_cnt+1)*16 +: 16];
 
               //exit
               if(wr_cnt==6'd7)begin
-                fill_state<=FILL_CMD;
-                wr_cnt<=6'd0;
-              end else
+                int_app_addr<=int_app_addr+27'd8;
                 fill_state<=FILL_RNG;
-            end
-          end
+                wr_cnt<=6'd0;
 
-          FILL_CMD:begin
-            if(app_cmd_rdy)begin
-              app_cmd_en<=1'b1;
-              app_cmd<=WR_CMD;
-              int_app_addr<=int_app_addr+27'd64;//8-burst
-              
-              fill_state<=FILL_RNG;
-
-              //exit
-              if(ddr_size==DDR_SIZE_2G)begin
-                if({1'b0,int_app_addr}==28'h800_0000-28'd128)begin
-                  work_state<=WORK_INV_CHECK;
-                  fill_state<=FILL_RST;
-                end
-              end else begin
-                if({1'b0,int_app_addr}==28'h400_0000-28'd128)begin
-                  work_state<=WORK_INV_CHECK;
-                  fill_state<=FILL_RST;
+                if(ddr_size==DDR_SIZE_1G)begin
+                  if({1'b0,int_app_addr}==28'h400_0000-28'd8)begin
+                    work_state<=WORK_INV_CHECK;
+                    fill_state<=FILL_RST;
+                  end
+                end else begin
+                  if({1'b0,int_app_addr}==28'h800_0000-28'd8)begin
+                    work_state<=WORK_INV_CHECK;
+                    fill_state<=FILL_RST;
+                  end
                 end
               end
+                
             end
           end
         endcase
       end
 
-      //check data----------------------------------------------------
+      //check inv data----------------------------------------------------
       WORK_INV_CHECK:begin
-        //asser the read cmd, then read the data and compare with the rng
-        app_burst_number<=6'd7;//8-burst
-
+        //perform the read cmd, then read the data and compare with the rng
         rng_rst<=1'b0;
         rng_tick<=1'b0;
         rng_init_pattern<=128'h0123_4567_890A_BCDE_FEDC_BA98_7654_3210;
 
-        app_cmd_en<=1'b0;
+        app_rd_rdy<=1'b0;
 
         case(check_state)
           CHECK_RST:begin
             rng_rst<=1'b1;
 
-            //set adr to the prev pos, so after add 64, it will be 0
-            int_app_addr<=28'h800_0000-28'd64;
+            //set adr to the prev pos, so after add 8, it will be 0
+            int_app_addr<=27'h0;
 
             //exit
-            check_state<=CHECK_CMD;
-          end
-
-          CHECK_CMD:begin
-            if(app_cmd_rdy)begin
-              rng_tick<=1'b1;//one more tick
-
-              app_cmd_en<=1'b1;
-              app_cmd<=RD_CMD;
-              int_app_addr<=int_app_addr+27'd64;//8-burst
-
-              check_state<=CHECK_DAT;
-              read_data_pos<=3'd0;
-            end
+            check_state<=CHECK_DAT;
           end
 
           CHECK_DAT:begin
-            if(app_rdata_valid)begin
-              read_data[read_data_pos]<=app_rdata;
+            rng_tick<=1'b1;
+
+            if(read_data_pos==3'd0)begin
+              app_rd_rdy<=1'b1;
+            end else
+              app_rd_rdy<=1'b0;
+
+            if(app_rd_valid)begin
+              read_data[read_data_pos*16+:16]<=app_rd_payload;
 
               read_data_pos<=read_data_pos+3'd1;
               if(read_data_pos==3'd7)begin
@@ -508,35 +471,33 @@ always@(posedge clk_x1 or negedge rst_n)begin
           CHECK_RNG:begin
             rng_tick<=1'b1;
 
-            if(rng_cnt==7'd0)begin
-
-              if(read_buf_s1!=rng_inv)begin
+            if(rng_cnt==7'd2)begin
+              if(read_data!=rng_inv)begin
                 work_state<=WORK_CHECK_FAIL;
               end
 
-              read_data_pos<=read_data_pos+3'd1;
+              int_app_addr<=int_app_addr+27'd8;
 
               //exit
-              if(read_data_pos==3'd7)begin
-                check_state<=CHECK_CMD;
+              check_state<=CHECK_DAT;
 
-                if(ddr_size==DDR_SIZE_1G)begin
-                  if({1'b0,int_app_addr}==28'h400_0000-28'd64)begin
-                    work_state<=WORK_FIN;
-                    check_state<=CHECK_RST;
-                  end
+              if(ddr_size==DDR_SIZE_1G)begin
+                if({1'b0,int_app_addr}==28'h400_0000-28'd8)begin
+                  work_state<=WORK_FIN;
+                  check_state<=CHECK_RST;
                 end
-                else begin
-                  if({1'b0,int_app_addr}==28'h800_0000-28'd64)begin
-                    work_state<=WORK_FIN;
-                    check_state<=CHECK_RST;
-                  end
+              end
+              else begin
+                if({1'b0,int_app_addr}==28'h800_0000-28'd8)begin
+                  work_state<=WORK_FIN;
+                  check_state<=CHECK_RST;
                 end
               end
             end
           end
         endcase
       end
+
 
       //check error----------------------------------------------------
       WORK_CHECK_FAIL:begin
@@ -558,7 +519,7 @@ end
 //Print Controll -------------------------------------------
 `include "print.v"
 defparam tx.uart_freq=115200;
-defparam tx.clk_freq=27_000_000;
+defparam tx.clk_freq=80_000_000;
 assign print_clk = clk;
 assign txp = uart_txp;
 
@@ -573,7 +534,7 @@ always@(posedge clk)begin
   state_0<=work_state;
 
   if(state_0==state_1)begin//stable value
-    state_old<=state_new;
+    if(print_state==PRINT_IDLE_STATE)state_old<=state_new;
 
     if(state_old!=state_new)begin//state changes
       if(state_old==WORK_WAIT_INIT)`print("Init Complete\n",STR);
@@ -599,7 +560,7 @@ always@(posedge clk)begin
     end
   end
 
-  if(rst_n==1'b0)`print("Perform Reset\nAuto Reset Every 100s\n",STR);
+  if(rst_n==1'b0)`print("Perform Reset\nAuto Reset Every 125s\n",STR);
 end
 //Print Controll -------------------------------------------
 

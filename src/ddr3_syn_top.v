@@ -1,159 +1,119 @@
 `timescale 1ps /1ps
 
-module ddr3_syn_top
-  (
-    clk,
+module ddr3_syn_top(
+  clk,
 
+  ddr_addr,
+  ddr_bank,
+  ddr_cs,
+  ddr_ras,
+  ddr_cas,
+  ddr_we,
+  ddr_ck,
+  ddr_ck_n,
+  ddr_cke,
+  ddr_odt,
+  ddr_reset_n,
+  ddr_dm,
+  ddr_dq,
+  ddr_dqs,
+  ddr_dqs_n,
 
-    ddr_addr,
-    ddr_bank,
-    ddr_cs,
-    ddr_ras,
-    ddr_cas,
-    ddr_we,
-    ddr_ck,
-    ddr_ck_n,
-    ddr_cke,
-    ddr_odt,
-    ddr_reset_n,
-    ddr_dm,
-    ddr_dq,
-    ddr_dqs,
-    ddr_dqs_n,
+  uart_txp
+);
 
-    uart_txp
-  );
+input                       clk;
 
-  input                       clk;
+output [14-1:0]             ddr_addr;       //ROW_WIDTH=14
+output [3-1:0]              ddr_bank;       //BANK_WIDTH=3
+output                      ddr_cs;
+output                      ddr_ras;
+output                      ddr_cas;
+output                      ddr_we;
+output                      ddr_ck;
+output                      ddr_ck_n;
+output                      ddr_cke;
+output                      ddr_odt;
+output                      ddr_reset_n;
+output [2-1:0]              ddr_dm;         //DM_WIDTH=2
+inout [16-1:0]              ddr_dq;         //DQ_WIDTH=16
+inout [2-1:0]               ddr_dqs;        //DQS_WIDTH=2
+inout [2-1:0]               ddr_dqs_n;      //DQS_WIDTH=2
 
-  output [14-1:0]             ddr_addr;       //ROW_WIDTH=14
-  output [3-1:0]              ddr_bank;       //BANK_WIDTH=3
-  output                      ddr_cs;
-  output                      ddr_ras;
-  output                      ddr_cas;
-  output                      ddr_we;
-  output                      ddr_ck;
-  output                      ddr_ck_n;
-  output                      ddr_cke;
-  output                      ddr_odt;
-  output                      ddr_reset_n;
-  output [2-1:0]              ddr_dm;         //DM_WIDTH=2
-  inout [16-1:0]              ddr_dq;         //DQ_WIDTH=16
-  inout [2-1:0]               ddr_dqs;        //DQS_WIDTH=2
-  inout [2-1:0]               ddr_dqs_n;      //DQS_WIDTH=2
+output                      uart_txp;
 
-  output                      uart_txp;
+wire clk80;
+wire clk80_n;
 
-  wire                        memory_clk;
-  wire                        pll_lock;
+wire rst_n;
 
+wire [27-1:0]             app_addr;        //ADDR_WIDTH=27
 
-  assign ddr_cs = 1'b0;
+wire                      app_rd_valid;
+wire                      app_rd_rdy;
+wire [16-1:0]             app_rd_payload;       //DATA_WIDTH=16
 
+wire                      app_wr_valid;
+wire                      app_wr_rdy;
+wire [16-1:0]             app_wr_payload;       //DATA_WIDTH=16
 
-  wire rst_n;
-  wire clk_x1;
-  //IDK why Gowin Set the addr width to 28. But it should be 27
-  wire [27-1:0]             app_addr;        //ADDR_WIDTH=27
+wire                      init_fin;
 
-  wire                      app_cmd_en;
-  wire [2:0]                app_cmd;
-  wire                      app_cmd_rdy;
+tester test(
+  .clk(clk80),
+  .rst_n(rst_n),
 
-  wire                      app_wren;
-  wire                      app_data_end;
-  wire [128-1:0]            app_data;    //APP_DATA_WIDTH=128
-  wire                      app_data_rdy;
+  .app_addr(app_addr),
 
-  wire                      app_rdata_valid;
-  wire                      app_rdata_end;
-  wire [128-1:0]            app_rdata;     //APP_DATA_WIDTH=128
+  .app_rd_valid(app_rd_valid),
+  .app_rd_rdy(app_rd_rdy),
+  .app_rd_payload(app_rd_payload),
 
-  wire                      init_calib_complete;
-  wire [5:0]                app_burst_number;
+  .app_wr_valid(app_wr_valid),
+  .app_wr_rdy(app_wr_rdy),
+  .app_wr_payload(app_wr_payload),
 
-  tester test(
-    .clk(clk),
-    .rst_n(rst_n),
+  .init_fin(init_fin),
 
-    .clk_x1(clk_x1),
-    .app_addr(app_addr),
+  .txp(uart_txp)
+);
 
-    .app_cmd_en(app_cmd_en),
-    .app_cmd(app_cmd),
-    .app_cmd_rdy(app_cmd_rdy),
+Gowin_rPLL pll(
+  .clkout(clk80), //output clk 80MHz
+  .clkoutp(clk80_n), //output inverted clk 80MHz
+  .clkin(clk) //input clk
+);
 
-    .app_wren(app_wren),
-    .app_data_end(app_data_end),
-    .app_data(app_data),
-    .app_data_rdy(app_data_rdy),
+slowDDR3 DDR(
+  .phyIO_address(ddr_addr),
+  .phyIO_bank(ddr_bank),
+  .phyIO_cs(ddr_cs),
+  .phyIO_cas(ddr_cas),
+  .phyIO_ras(ddr_ras),
+  .phyIO_we(ddr_we),
+  .phyIO_clk_p(ddr_ck),
+  .phyIO_clk_n(ddr_ck_n),
+  .phyIO_cke(ddr_cke),
+  .phyIO_odt(ddr_odt),
+  .phyIO_rst_n(ddr_reset_n),
+  .phyIO_dm(ddr_dm),
+  .phyIO_dq(ddr_dq),
+  .phyIO_dqs_p(ddr_dqs),
+  .phyIO_dqs_n(ddr_dqs_n),
 
-    .app_rdata_valid(app_rdata_valid),
-    .app_rdata_end(app_rdata_end),
-    .app_rdata(app_rdata),
+  .sysIO_dataRd_valid(app_rd_valid),
+  .sysIO_dataRd_ready(app_rd_rdy),
+  .sysIO_dataRd_payload(app_rd_payload),
+  .sysIO_dataWr_valid(app_wr_valid),
+  .sysIO_dataWr_ready(app_wr_rdy),
+  .sysIO_dataWr_payload(app_wr_payload),
+  .sysIO_address(app_addr),
 
-    .init_calib_complete(init_calib_complete),
-    .app_burst_number(app_burst_number),
-
-    .txp(uart_txp)
-  );
-
-
-
-  Gowin_rPLL pll(
-               .clkout(memory_clk), //output clkout
-               .lock(pll_lock), //output lock
-               .reset(~rst_n), //input reset
-               .clkin(clk) //input clkin
-             );
-
-
-
-  //ddr3_memory_top u_ddr3 (
-  DDR3_Memory_Interface_Top u_ddr3 (
-                              .clk             (clk),
-                              .memory_clk      (memory_clk),
-                              .pll_lock        (pll_lock),
-                              .rst_n           (rst_n),   //rst_n
-                              .app_burst_number(app_burst_number),
-                              .cmd_ready       (app_cmd_rdy),
-                              .cmd             (app_cmd),
-                              .cmd_en          (app_cmd_en),
-                              .addr            ({1'b0,app_addr}),//IDK why Gowin Set the addr width to 28. But it should be 27
-                              .wr_data_rdy     (app_data_rdy),
-                              .wr_data         (app_data),
-                              .wr_data_en      (app_wren),
-                              .wr_data_end     (app_data_end),
-                              .wr_data_mask    (16'h0000),
-                              .rd_data         (app_rdata),
-                              .rd_data_valid   (app_rdata_valid),
-                              .rd_data_end     (app_rdata_end),
-                              .sr_req          (1'b0),
-                              .ref_req         (1'b0),
-                              .sr_ack          (),
-                              .ref_ack         (),
-                              .init_calib_complete(init_calib_complete),
-                              .clk_out         (clk_x1),
-                              .burst           (1'b1),
-
-                              // mem interface
-                              .ddr_rst         (),
-                              .O_ddr_addr      (ddr_addr),
-                              .O_ddr_ba        (ddr_bank),
-                              .O_ddr_cs_n      (ddr_cs1),
-                              .O_ddr_ras_n     (ddr_ras),
-                              .O_ddr_cas_n     (ddr_cas),
-                              .O_ddr_we_n      (ddr_we),
-                              .O_ddr_clk       (ddr_ck),
-                              .O_ddr_clk_n     (ddr_ck_n),
-                              .O_ddr_cke       (ddr_cke),
-                              .O_ddr_odt       (ddr_odt),
-                              .O_ddr_reset_n   (ddr_reset_n),
-                              .O_ddr_dqm       (ddr_dm),
-                              .IO_ddr_dq       (ddr_dq),
-                              .IO_ddr_dqs      (ddr_dqs),
-                              .IO_ddr_dqs_n    (ddr_dqs_n)
-                            );
+  .sysIO_initFin(init_fin),
+  .inv_clk(clk80_n),
+  .clk(clk80),
+  .resetn(rst_n)
+);
 
 
 endmodule
