@@ -289,13 +289,13 @@ always@(posedge clk_x1 or negedge rst_n)begin
               fill_state<=FILL_RNG;
 
               //exit
-              if(ddr_size==DDR_SIZE_2G)begin
-                if({1'b0,int_app_addr}==28'h800_0000-28'd128)begin
+              if(ddr_size==DDR_SIZE_1G)begin
+                if({1'b0,int_app_addr}==28'h400_0000-28'd128)begin
                   work_state<=WORK_CHECK;
                   fill_state<=FILL_RST;
                 end
               end else begin
-                if({1'b0,int_app_addr}==28'h400_0000-28'd128)begin
+                if({1'b0,int_app_addr}==28'h800_0000-28'd128)begin
                   work_state<=WORK_CHECK;
                   fill_state<=FILL_RST;
                 end
@@ -443,13 +443,13 @@ always@(posedge clk_x1 or negedge rst_n)begin
               fill_state<=FILL_RNG;
 
               //exit
-              if(ddr_size==DDR_SIZE_2G)begin
-                if({1'b0,int_app_addr}==28'h800_0000-28'd128)begin
+              if(ddr_size==DDR_SIZE_1G)begin
+                if({1'b0,int_app_addr}==28'h400_0000-28'd128)begin
                   work_state<=WORK_INV_CHECK;
                   fill_state<=FILL_RST;
                 end
               end else begin
-                if({1'b0,int_app_addr}==28'h400_0000-28'd128)begin
+                if({1'b0,int_app_addr}==28'h800_0000-28'd128)begin
                   work_state<=WORK_INV_CHECK;
                   fill_state<=FILL_RST;
                 end
