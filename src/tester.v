@@ -89,7 +89,7 @@ reg [26:0] int_app_addr;
 //it makes simpler to detect the size
 //the addr is the real ddr address
 //counted in 2 Bytes
-//So in every Single-Busrt, the addr should increse by 8
+//So in every Single-Burst, the addr should increse by 8
 //In a 64-Burst, the addr should increse by 512
 assign app_addr = {int_app_addr[12:10],int_app_addr[26:13],int_app_addr[9:0]};
 
